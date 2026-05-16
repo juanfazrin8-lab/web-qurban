@@ -278,4 +278,20 @@ app.post(
     }
 );
 
+const downloadModel = require("./download-model");
+
+(async () => {
+    await downloadModel();
+
+    // baru load ONNX setelah model ada
+    const ort = require("onnxruntime-node");
+
+    const session = await ort.InferenceSession.create(
+        "./models/model_int8.onnx"
+    );
+
+    console.log("Model siap digunakan 🚀");
+})();
+
+
 startServer();

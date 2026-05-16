@@ -7,7 +7,13 @@ const sharp = require('sharp');
 const fs = require('fs');
 
 const app = express();
+
+// ===================== PORT (WAJIB CLOUD READY) =====================
 const PORT = process.env.PORT || 5000;
+
+// ===================== MIDDLEWARE =====================
+app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ===================== INFO HEWAN =====================
 const HEWAN_INFO = {
@@ -60,9 +66,7 @@ const HEWAN_INFO = {
 
 const CLASSES = ['kerbau', 'kambing', 'sapi', 'domba', 'unta'];
 
-app.use(cors());
-app.use(express.static(path.join(__dirname, 'public')));
-
+// ===================== UPLOAD CONFIG =====================
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }
@@ -75,17 +79,24 @@ let outputName;
 
 const modelPath = path.resolve(__dirname, "models/model_int8.onnx");
 
+// ===================== HEALTH CHECK =====================
+app.get('/', (req, res) => {
+    res.json({
+        status: 'OK',
+        message: 'Server ONNX Qurban aktif'
+    });
+});
+
 // ===================== START SERVER =====================
 async function startServer() {
     try {
         console.log('[STARTUP] Memuat model ONNX...');
 
-        // CEK FILE
         const exists = fs.existsSync(modelPath);
         console.log('[CHECK] Model ada?', exists);
 
         if (!exists) {
-            throw new Error("Model tidak ditemukan di: " + modelPath);
+            throw new Error("Model tidak ditemukan: " + modelPath);
         }
 
         session = await ort.InferenceSession.create(modelPath);
@@ -94,9 +105,11 @@ async function startServer() {
         outputName = session.outputNames[0];
 
         console.log('[STARTUP] Model siap!');
-        console.log(`[SERVER] http://localhost:${PORT}`);
 
-        app.listen(PORT);
+        // 🔥 FIX PENTING UNTUK FLY
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`[SERVER] jalan di port ${PORT}`);
+        });
 
     } catch (err) {
         console.error('[ERROR] Gagal load model:', err);
@@ -151,9 +164,7 @@ app.post('/predict', upload.single('file'), async (req, res) => {
 
         const results = await session.run(feeds);
 
-        const probs = softmax(
-            Array.from(results[outputName].data)
-        );
+        const probs = softmax(Array.from(results[outputName].data));
 
         const semua_prob = CLASSES.map((cls, idx) => ({
             kelas: cls,
@@ -173,13 +184,11 @@ app.post('/predict', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error('[ERROR]', error);
-        res.status(500).json({
-            error: error.message
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// ===================== DOWNLOAD MODEL =====================
+// ===================== BOOTSTRAP MODEL =====================
 const downloadModel = require("./download-model");
 
 (async () => {
